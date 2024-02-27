@@ -195,6 +195,7 @@ public:
         sdrplay_api_GetDevices(devArr, &numDev, 128);
 
         for (unsigned int i = 0; i < numDev; i++) {
+            flog::info("sdrplay device hwVer: {0}", devArr[i].hwVer);
             devList.push_back(devArr[i]);
             std::string name = "";
             switch (devArr[i].hwVer) {
@@ -205,6 +206,11 @@ public:
                 break;
             case SDRPLAY_RSP1A_ID:
                 name = "RSP1A (";
+                name += devArr[i].SerNo;
+                name += ')';
+                break;
+            case SDRPLAY_RSP1B_ID:
+                name = "RSP1B (";
                 name += devArr[i].SerNo;
                 name += ')';
                 break;
@@ -300,6 +306,9 @@ public:
         else if (openDev.hwVer == SDRPLAY_RSP1A_ID) {
             lnaSteps = 10;
         }
+        else if (openDev.hwVer == SDRPLAY_RSP1B_ID) {
+            lnaSteps = 10;
+        }
         else if (openDev.hwVer == SDRPLAY_RSP2_ID) {
             lnaSteps = 9;
         }
@@ -332,6 +341,11 @@ public:
                 // No config to load
             }
             else if (openDev.hwVer == SDRPLAY_RSP1A_ID) {
+                config.conf["devices"][selectedName]["fmmwNotch"] = false;
+                config.conf["devices"][selectedName]["dabNotch"] = false;
+                config.conf["devices"][selectedName]["biast"] = false;
+            }
+            else if (openDev.hwVer == SDRPLAY_RSP1B_ID) {
                 config.conf["devices"][selectedName]["fmmwNotch"] = false;
                 config.conf["devices"][selectedName]["dabNotch"] = false;
                 config.conf["devices"][selectedName]["biast"] = false;
@@ -418,6 +432,17 @@ public:
             // No config to load
         }
         else if (openDev.hwVer == SDRPLAY_RSP1A_ID) {
+            if (config.conf["devices"][selectedName].contains("fmmwNotch")) {
+                rsp1a_fmmwNotch = config.conf["devices"][selectedName]["fmmwNotch"];
+            }
+            if (config.conf["devices"][selectedName].contains("dabNotch")) {
+                rsp1a_dabNotch = config.conf["devices"][selectedName]["dabNotch"];
+            }
+            if (config.conf["devices"][selectedName].contains("biast")) {
+                rsp1a_biasT = config.conf["devices"][selectedName]["biast"];
+            }
+        }
+        else if (openDev.hwVer == SDRPLAY_RSP1B_ID) {
             if (config.conf["devices"][selectedName].contains("fmmwNotch")) {
                 rsp1a_fmmwNotch = config.conf["devices"][selectedName]["fmmwNotch"];
             }
@@ -531,8 +556,11 @@ private:
     }
 
     static void start(void* ctx) {
+
         SDRPlaySourceModule* _this = (SDRPlaySourceModule*)ctx;
         if (_this->running) { return; }
+
+        flog::info("sdrplay device hwVer: {0}", _this->openDev.hwVer);
 
         // First, acquire device
         sdrplay_api_ErrT err;
@@ -574,6 +602,14 @@ private:
 
         // RSP1A Options
         if (_this->openDev.hwVer == SDRPLAY_RSP1A_ID) {
+            _this->openDevParams->devParams->rsp1aParams.rfNotchEnable = _this->rsp1a_fmmwNotch;
+            _this->openDevParams->devParams->rsp1aParams.rfDabNotchEnable = _this->rsp1a_dabNotch;
+            _this->channelParams->rsp1aTunerParams.biasTEnable = _this->rsp1a_biasT;
+            sdrplay_api_Update(_this->openDev.dev, _this->openDev.tuner, sdrplay_api_Update_Rsp1a_RfNotchControl, sdrplay_api_Update_Ext1_None);
+            sdrplay_api_Update(_this->openDev.dev, _this->openDev.tuner, sdrplay_api_Update_Rsp1a_RfDabNotchControl, sdrplay_api_Update_Ext1_None);
+            sdrplay_api_Update(_this->openDev.dev, _this->openDev.tuner, sdrplay_api_Update_Rsp1a_BiasTControl, sdrplay_api_Update_Ext1_None);
+        }
+        else if (_this->openDev.hwVer == SDRPLAY_RSP1B_ID) {
             _this->openDevParams->devParams->rsp1aParams.rfNotchEnable = _this->rsp1a_fmmwNotch;
             _this->openDevParams->devParams->rsp1aParams.rfDabNotchEnable = _this->rsp1a_dabNotch;
             _this->channelParams->rsp1aTunerParams.biasTEnable = _this->rsp1a_biasT;
@@ -652,7 +688,7 @@ private:
         sdrplay_api_Update(_this->openDev.dev, _this->openDev.tuner, sdrplay_api_Update_Ctrl_Agc, sdrplay_api_Update_Ext1_None);
 
         _this->running = true;
-        flog::info("SDRPlaySourceModule '{0}': Start!", _this->name);
+        flog::info("SDRPlaySourceModule '{0}': Start! wtf?", _this->name);
     }
 
     static void stop(void* ctx) {
@@ -854,6 +890,9 @@ private:
                 _this->RSP1Menu();
                 break;
             case SDRPLAY_RSP1A_ID:
+                _this->RSP1AMenu();
+                break;
+            case SDRPLAY_RSP1B_ID:
                 _this->RSP1AMenu();
                 break;
             case SDRPLAY_RSP2_ID:
