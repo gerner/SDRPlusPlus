@@ -5,7 +5,7 @@
 namespace net::rigctl {
     int recvLine(std::shared_ptr<net::Socket> sock, std::vector<std::string>& args);
 
-    std::map<Mode, const char*> radioModeToString = {
+    std::map<Mode, std::string> radioModeToString = {
         { MODE_USB, "USB" },
         { MODE_LSB, "LSB" },
         { MODE_CW, "CW" },
@@ -32,7 +32,7 @@ namespace net::rigctl {
     // notice there are some duplicate values, but keys are unique
     // there's lots of options in Hamlib not in net::rigctl::Modes
     // there's one option in net::rigctl::Modes not in Hamlib
-    std::map<const char*, Mode> radioStringToMode = {
+    std::map<std::string, Mode> radioStringToMode = {
         { "USB", MODE_USB },
         { "LSB", MODE_LSB },
         { "CW", MODE_CW },
@@ -94,7 +94,7 @@ namespace net::rigctl {
         if (err != 1) {
             return MODE_INVALID;
         }
-        auto it = radioStringToMode.find(args[0].c_str());
+        auto it = radioStringToMode.find(args[0]);
         if (radioStringToMode.end() == it) {
             // consume passband to try and leave the client in a
             // good state
@@ -102,6 +102,7 @@ namespace net::rigctl {
             return MODE_INVALID;
         }
         Mode mode = it->second;
+        args.clear();
 
         //get the second line which is passband
         err = recvLine(sock, args);
@@ -118,7 +119,7 @@ namespace net::rigctl {
             return -1;
         }
         char buf[128];
-        snprintf(buf, sizeof(buf), "%s %s %d\n", "M", radioModeToString[mode], passband);
+        snprintf(buf, sizeof(buf), "%s %s %d\n", "M", radioModeToString[mode].c_str(), passband);
         sock->sendstr(buf);
 
         return recvStatus();
