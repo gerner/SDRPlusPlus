@@ -1,7 +1,65 @@
 #include "rigctl.h"
 #include <math.h>
+#include <map>
 
 namespace net::rigctl {
+    int recvLine(std::shared_ptr<net::Socket> sock, std::vector<std::string>& args);
+
+    std::map<Mode, const char*> radioModeToString = {
+        { MODE_USB, "USB" },
+        { MODE_LSB, "LSB" },
+        { MODE_CW, "CW" },
+        { MODE_CWR, "CWR" },
+        { MODE_RTTY, "RTTY" },
+        { MODE_RTTYR, "RTTYR" },
+        { MODE_AM, "AM" },
+        { MODE_FM, "FM" },
+        { MODE_WFM, "WFM" },
+        { MODE_AMS, "AMS" },
+        { MODE_PKTLSB, "PKTLSB" },
+        { MODE_PKTUSB, "PKTUSB" },
+        { MODE_PKTFM, "PKTFM" },
+        { MODE_ECSSUSB, "ECSSUSB" },
+        { MODE_ECSSLSB, "ECSSLSB" },
+        { MODE_FA, "FA" },
+        { MODE_SAM, "SAM" },
+        { MODE_SAL, "SAL" },
+        { MODE_SAH, "SAH" },
+        { MODE_DSB, "DSB" }
+    };
+
+    // options taken from Hamlib src/misc.c
+    // notice there are some duplicate values, but keys are unique
+    // there's lots of options in Hamlib not in net::rigctl::Modes
+    // there's one option in net::rigctl::Modes not in Hamlib
+    std::map<const char*, Mode> radioStringToMode = {
+        { "USB", MODE_USB },
+        { "LSB", MODE_LSB },
+        { "CW", MODE_CW },
+        { "CWR", MODE_CWR },
+        { "CW-R", MODE_CWR },
+        { "RTTY", MODE_RTTY },
+        { "RTTYR", MODE_RTTYR },
+        { "RTTY-R", MODE_RTTYR },
+        { "AM", MODE_AM },
+        { "FM", MODE_FM },
+        { "WFM", MODE_WFM },
+        { "AMS", MODE_AMS },
+        { "PKTLSB", MODE_PKTLSB },
+        { "LSB-D", MODE_PKTLSB },
+        { "PKTUSB", MODE_PKTUSB },
+        { "USB-D", MODE_PKTUSB },
+        { "PKTFM", MODE_PKTFM },
+        { "FM-D", MODE_PKTFM },
+        { "ECSSUSB", MODE_ECSSUSB },
+        { "ECSSLSB", MODE_ECSSLSB },
+        //{ "???", MODE_FA }, // not in Hamlib
+        { "SAM", MODE_SAM },
+        { "SAL", MODE_SAL },
+        { "SAH", MODE_SAH },
+        { "DSB", MODE_DSB }
+    };
+
     Client::Client(std::shared_ptr<Socket> sock) {
         this->sock = sock;
     }
@@ -26,7 +84,45 @@ namespace net::rigctl {
         return setFloat("F", freq);
     }
 
-    // TODO: get/setMode
+    Mode Client::getMode(int* passband) {
+        sock->sendstr("m\n");
+        std::vector<std::string> args;
+        int err;
+
+        //get the first line which is mode
+        err = recvLine(sock, args);
+        if (err != 1) {
+            return MODE_INVALID;
+        }
+        auto it = radioStringToMode.find(args[0].c_str());
+        if (radioStringToMode.end() == it) {
+            // consume passband to try and leave the client in a
+            // good state
+            recvLine(sock, args);
+            return MODE_INVALID;
+        }
+        Mode mode = it->second;
+
+        //get the second line which is passband
+        err = recvLine(sock, args);
+        if (err != 1) {
+            return MODE_INVALID;
+        }
+        *passband = std::stoi(args[0]);
+
+        return mode;
+    }
+
+    int Client::setMode(Mode mode, int passband) {
+        if (MODE_INVALID == mode) {
+            return -1;
+        }
+        char buf[128];
+        snprintf(buf, sizeof(buf), "%s %s %d\n", "M", radioModeToString[mode], passband);
+        sock->sendstr(buf);
+
+        return recvStatus();
+    }
 
     // TODO: get/setVFO
 

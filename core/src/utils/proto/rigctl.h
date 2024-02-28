@@ -5,6 +5,11 @@
 #include <functional>
 #include <thread>
 
+// we mark this define to indicate we've extended RIGCTL to fill in missing
+// functionality. This lets other tools work conditionally with standard SDR++
+// vs my fork.
+#define GERNER_PROTO_RIGCTL 1
+
 namespace net::rigctl {
     enum Mode {
         MODE_INVALID = -1,
@@ -187,9 +192,9 @@ namespace net::rigctl {
 
         double getFreq();
         int setFreq(double freq);
-        
-        Mode getMode();
-        int setMode(Mode mode);
+
+        Mode getMode(int* passband);
+        int setMode(Mode mode, int passband);
 
         VFO getVFO();
         int setVFO(VFO vfo);
